@@ -31,80 +31,99 @@ class PongClient:
     
     def connect(self, player_name="Player"):
         """Conecta ao servidor"""
-        # TODO: Implementar conexão
-        # - Criar mensagem JSON do tipo "connect"
-        # - Enviar para o servidor
-        # - Aguardar resposta "connection_accepted" ou "waiting_player"
-        # - Armazenar self.my_side e self.player_number
-        # - Iniciar thread de recebimento
-        # - Retornar True se sucesso, False se falha
-        pass
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sock.settimeout(2.0) # Timeout inicial para a conexão
+            
+            # Envia pedido de conexão (estilo INSERE do seu exemplo)
+            msg = {"type": "connect", "player_name": player_name}
+            self.sock.sendto(json.dumps(msg).encode(), self.server_address)
+            
+            # Aguarda confirmação
+            data, addr = self.sock.recvfrom(1024)
+            message = json.loads(data.decode())
+            
+            if message['type'] == 'connection_accepted':
+                self.my_side = message['side']
+                self.player_number = message['player_number']
+                self.connected = True
+                self.running = True
+                
+                # Inicia thread para escutar o servidor continuamente
+                self.sock.settimeout(0.1) # Timeout baixo para a thread não travar
+                self.receive_thread = threading.Thread(target=self.receive_messages, daemon=True)
+                self.receive_thread.start()
+                return True
+        except Exception as e:
+            print(f"Falha ao conectar: {e}")
+            return False
     
     def disconnect(self):
         """Desconecta do servidor"""
-        # TODO: Implementar desconexão
-        # - Enviar mensagem "disconnect" ao servidor
-        # - Parar thread de recebimento (self.running = False)
-        # - Fechar socket
-        pass
+        if self.connected:
+            try:
+                msg = {"type": "disconnect"}
+                self.sock.sendto(json.dumps(msg).encode(), self.server_address)
+            except:
+                pass
+            self.running = False
+            self.connected = False
+            self.sock.close()
     
     def send_paddle_position(self, y_position):
         """Envia posição da raquete para o servidor"""
-        # TODO: Implementar envio de posição
-        # - Criar mensagem JSON do tipo "paddle_update"
-        # - Incluir posição Y
-        # - Enviar via UDP ao servidor
-        # - Tratar erros de envio
-        pass
+        if not self.connected: return
+        
+        try:
+            msg = {
+                "type": "paddle_update",
+                "y": y_position
+            }
+            self.sock.sendto(json.dumps(msg).encode(), self.server_address)
+        except Exception as e:
+            print(f"Erro ao enviar posição: {e}")
     
     def send_ping(self):
         """Envia ping para manter conexão ativa"""
-        # TODO: Implementar ping
-        # - Criar mensagem JSON do tipo "ping"
-        # - Enviar ao servidor
-        # - Chamar periodicamente (a cada 1-2 segundos)
-        pass
+        if not self.connected:
+            return
+        
+        try:
+            # Cria a mensagem simples de ping seguindo o teu protocolo JSON
+            msg = {
+                "type": "ping",
+                "timestamp": time.time() # Opcional: útil para medir latência (lag)
+            }
+            # Envia para o endereço do servidor configurado no __init__
+            self.sock.sendto(json.dumps(msg).encode(), self.server_address)
+        except Exception as e:
+            print(f"Erro ao enviar ping: {e}")
     
     def receive_messages(self):
         """Thread que recebe mensagens do servidor continuamente"""
-        # TODO: Implementar recebimento de mensagens
-        # while self.running:
-        #     try:
-        #         # Receber dados do socket
-        #         data, addr = self.sock.recvfrom(1024)
-        #         message = json.loads(data.decode())
-        #         
-        #         # Processar mensagem baseado no tipo
-        #         if message['type'] == 'game_state':
-        #             self.game_state = message
-        #         elif message['type'] == 'waiting_player':
-        #             self.waiting_for_player = True
-        #         elif message['type'] == 'player_disconnected':
-        #             # Tratar desconexão do oponente
-        #             pass
-        #     except socket.timeout:
-        #         continue
-        #     except Exception as e:
-        #         print(f"Erro ao receber: {e}")
-        pass
+        while self.running:
+            try:
+                data, addr = self.sock.recvfrom(4096)
+                message = json.loads(data.decode())
+                
+                if message['type'] == 'game_state':
+                    self.game_state = message
+                    self.waiting_for_player = False
+                elif message['type'] == 'player_disconnected':
+                    self.waiting_for_player = True
+            except socket.timeout:
+                continue
+            except Exception as e:
+                if self.running:
+                    print(f"Erro no recebimento: {e}")
+                break
     
     def get_my_paddle_y(self):
-        """Retorna posição Y da minha raquete"""
-        # TODO: Retornar posição baseado no lado
-        # if self.my_side == 'left':
-        #     return self.game_state['paddles']['left']
-        # else:
-        #     return self.game_state['paddles']['right']
-        return 50
-    
+        return self.game_state['paddles'].get(self.my_side, 50)
+
     def get_opponent_paddle_y(self):
-        """Retorna posição Y da raquete do oponente"""
-        # TODO: Retornar posição baseado no lado oposto
-        # if self.my_side == 'left':
-        #     return self.game_state['paddles']['right']
-        # else:
-        #     return self.game_state['paddles']['left']
-        return 50
+        opp_side = 'right' if self.my_side == 'left' else 'left'
+        return self.game_state['paddles'].get(opp_side, 50)
     
     def get_ball_state(self):
         """Retorna estado completo da bola"""

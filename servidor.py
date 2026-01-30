@@ -3,150 +3,151 @@ import json
 import time
 import random
 
-# Configurações do servidor
-HOST = '0.0.0.0'  # Escuta em todas as interfaces
+HOST = '0.0.0.0'
 PORT = 5555
 BUFFER_SIZE = 1024
 
 class PongServer:
     def __init__(self):
-        # TODO: Inicializar socket UDP
-        # self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # self.sock.bind((HOST, PORT))
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
-        # Estado do jogo
-        self.players = {}  # {addr: {'side': 'left'/'right', 'y': 50}}
-        self.ball = {
+        try:
+            self.sock.bind((HOST, PORT))
+        except OSError:
+            print(f"ERRO: Porta {PORT} ocupada. Use 'fuser -k {PORT}/udp'.")
+            exit(1)
+            
+        self.sock.setblocking(False)
+        
+        self.players = {}  # {addr: {'side': 'left', 'y': 50}}
+        self.ball = {'x': 80, 'y': 60, 'dx': 2, 'dy': 2, 'speed': 2, 'frozen': True, 'freeze_timer': 30}
+        self.scores = {'left': 0, 'right': 0}
+        self.winner = None
+        self.game_started = False
+        print(f"Servidor Pong Online iniciado em {HOST}:{PORT}")
+
+    def reset_ball(self):
+        """Lógica de reset vinda do seu código original"""
+        self.ball.update({
             'x': 80,
             'y': 60,
-            'dx': 2,
-            'dy': 2,
             'speed': 2,
             'frozen': True,
-            'freeze_timer': 30
-        }
-        self.scores = {'left': 0, 'right': 0}
-        self.game_started = False
-        
-        print(f"Servidor iniciado em {HOST}:{PORT}")
-    
-    def reset_ball(self):
-        """Reseta a bola para o centro com direção aleatória"""
-        # TODO: Implementar reset da bola
-        # - Posicionar no centro (80, 60)
-        # - Direção horizontal aleatória (esquerda ou direita)
-        # - Ângulo vertical aleatório
-        # - Resetar velocidade para 2
-        # - Congelar por 30 frames
-        pass
-    
-    def handle_player_connection(self, addr, data):
-        """Gerencia conexão de novo jogador"""
-        # TODO: Implementar lógica de conexão
-        # - Verificar se já existem 2 jogadores conectados
-        # - Atribuir lado (left/right) ao jogador
-        # - Adicionar jogador ao dicionário self.players
-        # - Enviar confirmação com o lado atribuído
-        # - Se 2 jogadores conectados, iniciar jogo (self.game_started = True)
-        pass
-    
-    def handle_paddle_update(self, addr, data):
-        """Atualiza posição da raquete do jogador"""
-        # TODO: Implementar atualização de raquete
-        # - Verificar se o endereço está em self.players
-        # - Atualizar posição Y da raquete do jogador
-        # - Validar limites (0 <= y <= 104)
-        pass
-    
-    def update_ball_physics(self):
-        """Atualiza física da bola (colisões, movimento)"""
-        # TODO: Implementar física da bola
-        # - Gerenciar timer de congelamento
-        # - Atualizar posição (x += dx, y += dy)
-        # - Detectar colisão com paredes superior/inferior
-        # - Detectar colisão com raquetes (calcular ângulo baseado na posição de impacto)
-        # - Aumentar velocidade gradualmente a cada colisão
-        # - Detectar pontos (bola sai pelas laterais)
-        # - Atualizar placar
-        # - Resetar bola após ponto
-        pass
-    
-    def broadcast_game_state(self):
-        """Envia estado do jogo para todos os jogadores"""
-        # TODO: Implementar broadcast
-        # - Criar dicionário com estado completo:
-        #   * Posições das raquetes (left_y, right_y)
-        #   * Posição e velocidade da bola
-        #   * Placar (score_left, score_right)
-        #   * Status do jogo (started, frozen, winner)
-        # - Serializar para JSON
-        # - Enviar via UDP para todos os endereços em self.players
-        pass
-    
-    def handle_disconnection(self, addr):
-        """Gerencia desconexão de jogador"""
-        # TODO: Implementar desconexão
-        # - Remover jogador de self.players
-        # - Notificar outro jogador (se houver)
-        # - Pausar/resetar jogo se necessário
-        # - Aguardar reconexão ou novo jogador
-        pass
-    
-    def run(self):
-        """Loop principal do servidor"""
-        # TODO: Implementar loop principal
-        # while True:
-        #     # Receber mensagens dos clientes (non-blocking ou com timeout)
-        #     # Processar mensagens (conexão, movimento, ping)
-        #     # Atualizar física do jogo se game_started
-        #     # Broadcast do estado para todos os jogadores
-        #     # Controlar taxa de atualização (~60 FPS)
-        #     time.sleep(1/60)
-        pass
+            'freeze_timer': 30,
+            'dx': 2 if random.choice([True, False]) else -2,
+            'dy': random.uniform(-1.5, 1.5)
+        })
 
-# TODO: Protocolo de comunicação (formato das mensagens JSON):
-# 
-# Cliente -> Servidor:
-# {
-#     "type": "connect",
-#     "player_name": "Player1"  # opcional
-# }
-# {
-#     "type": "paddle_update",
-#     "y": 50
-# }
-# {
-#     "type": "ping"  # para manter conexão ativa
-# }
-# {
-#     "type": "disconnect"
-# }
-#
-# Servidor -> Cliente:
-# {
-#     "type": "connection_accepted",
-#     "side": "left",  # ou "right"
-#     "player_number": 1  # ou 2
-# }
-# {
-#     "type": "waiting_player",
-#     "waiting_for": 2  # número do jogador que falta
-# }
-# {
-#     "type": "game_state",
-#     "ball": {"x": 80, "y": 60, "dx": 2, "dy": 2, "frozen": false},
-#     "paddles": {"left": 50, "right": 50},
-#     "scores": {"left": 0, "right": 0},
-#     "winner": null  # ou "left"/"right"
-# }
-# {
-#     "type": "player_disconnected",
-#     "side": "right"
-# }
+    def reset_game(self):
+        """Zera o placar e reinicia o estado"""
+        self.scores = {'left': 0, 'right': 0}
+        self.winner = None
+        self.reset_ball()
+
+    def handle_messages(self):
+        try:
+            while True:
+                data, addr = self.sock.recvfrom(BUFFER_SIZE)
+                msg = json.loads(data.decode())
+                
+                if msg['type'] == 'connect':
+                    if len(self.players) < 2 and addr not in self.players:
+                        side = 'left' if len(self.players) == 0 else 'right'
+                        self.players[addr] = {'side': side, 'y': 50}
+                        resp = {"type": "connection_accepted", "side": side, "player_number": len(self.players)}
+                        self.sock.sendto(json.dumps(resp).encode(), addr)
+                        if len(self.players) == 2:
+                            self.game_started = True
+                            self.reset_ball()
+
+                elif msg['type'] == 'paddle_update':
+                    if addr in self.players:
+                        self.players[addr]['y'] = max(0, min(msg.get('y', 50), 104))
+
+                elif msg['type'] == 'restart':
+                    if self.winner: # Só permite restart se alguém venceu
+                        self.reset_game()
+
+                elif msg['type'] == 'disconnect':
+                    if addr in self.players:
+                        del self.players[addr]
+                        self.game_started = False
+                        self.winner = None
+
+        except BlockingIOError:
+            pass
+
+    def update_physics(self):
+        if not self.game_started or self.winner:
+            return
+
+        if self.ball['frozen']:
+            self.ball['freeze_timer'] -= 1
+            if self.ball['freeze_timer'] <= 0:
+                self.ball['frozen'] = False
+            return
+
+        # Movimentação
+        self.ball['x'] += self.ball['dx']
+        self.ball['y'] += self.ball['dy']
+
+        # Rebote Teto/Chão
+        if self.ball['y'] <= 0 or self.ball['y'] >= 120:
+            self.ball['dy'] *= -1
+
+        # Posições das raquetes para colisão
+        p1_y = next((p['y'] for p in self.players.values() if p['side'] == 'left'), 50)
+        p2_y = next((p['y'] for p in self.players.values() if p['side'] == 'right'), 50)
+
+        # Colisão Raquete Esquerda (Lógica hit_pos do seu código)
+        if 3 <= self.ball['x'] <= 7 and p1_y <= self.ball['y'] <= p1_y + 16:
+            hit_pos = (self.ball['y'] - p1_y) / 16
+            self.ball['dy'] = (hit_pos - 0.5) * 4
+            self.ball['dx'] = abs(self.ball['dx']) + 0.1
+            self.ball['x'] = 7
+
+        # Colisão Raquete Direita
+        if 153 <= self.ball['x'] <= 157 and p2_y <= self.ball['y'] <= p2_y + 16:
+            hit_pos = (self.ball['y'] - p2_y) / 16
+            self.ball['dy'] = (hit_pos - 0.5) * 4
+            self.ball['dx'] = -(abs(self.ball['dx']) + 0.1)
+            self.ball['x'] = 153
+
+        # Pontuação até 10
+        if self.ball['x'] < 0:
+            self.scores['right'] += 1
+            if self.scores['right'] >= 10: self.winner = "DIREITA"
+            else: self.reset_ball()
+        elif self.ball['x'] > 160:
+            self.scores['left'] += 1
+            if self.scores['left'] >= 10: self.winner = "ESQUERDA"
+            else: self.reset_ball()
+
+    def broadcast(self):
+        if not self.players: return
+        paddles = {p['side']: p['y'] for p in self.players.values()}
+        state = {
+            "type": "game_state",
+            "ball": self.ball,
+            "paddles": paddles,
+            "scores": self.scores,
+            "winner": self.winner
+        }
+        package = json.dumps(state).encode()
+        for addr in self.players:
+            self.sock.sendto(package, addr)
+
+    def run(self):
+        while True:
+            self.handle_messages()
+            self.update_physics()
+            self.broadcast()
+            time.sleep(1/60)
 
 if __name__ == "__main__":
-    # TODO: Criar instância do servidor e executar
-    # server = PongServer()
-    # server.run()
-    print("Servidor Pong UDP")
-    print("TODO: Implementar servidor completo")
+    server = PongServer()
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        server.sock.close()
