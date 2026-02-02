@@ -2,211 +2,143 @@ import socket
 import json
 import threading
 import time
+import sys
 
 class PongClient:
     def __init__(self, server_host='localhost', server_port=5555):
         self.server_address = (server_host, server_port)
-        
-        # TODO: Inicializar socket UDP
-        # self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # self.sock.settimeout(0.1)  # timeout para não bloquear
-        
-        # Estado local
+        self.sock = None
         self.connected = False
-        self.my_side = None  # 'left' ou 'right'
-        self.player_number = None  # 1 ou 2
-        self.waiting_for_player = False
-        
-        # Estado do jogo recebido do servidor
+        self.my_side = None          # 'esquerdo' ou 'direito'
+        self.player_number = None    # 1 ou 2
         self.game_state = {
-            'ball': {'x': 80, 'y': 60, 'dx': 2, 'dy': 2, 'frozen': True},
-            'paddles': {'left': 50, 'right': 50},
-            'scores': {'left': 0, 'right': 0},
+            'ball': {'x': 80, 'y': 60, 'frozen': True},
+            'paddles': {'esquerdo': 50, 'direito': 50},
+            'scores': {'esquerdo': 0, 'direito': 0},
             'winner': None
         }
-        
-        # Thread para receber mensagens
+        self.last_received = 0
         self.running = False
         self.receive_thread = None
-    
-    def connect(self, player_name="Player"):
-        """Conecta ao servidor"""
+        self.last_send_time = 0
+        self.HEARTBEAT_INTERVAL = 1.5   # segundos
+
+    def connect(self, player_name="Jogador"):
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.sock.settimeout(2.0) # Timeout inicial para a conexão
-            
-            # Envia pedido de conexão (estilo INSERE do seu exemplo)
-            msg = {"type": "connect", "player_name": player_name}
+            self.sock.settimeout(3.0)  # timeout maior so na conexao inicial
+
+            msg = {"type": "connect", "name": player_name}
             self.sock.sendto(json.dumps(msg).encode(), self.server_address)
-            
-            # Aguarda confirmação
-            data, addr = self.sock.recvfrom(1024)
-            message = json.loads(data.decode())
-            
-            if message['type'] == 'connection_accepted':
-                self.my_side = message['side']
-                self.player_number = message['player_number']
-                self.connected = True
-                self.running = True
-                
-                # Inicia thread para escutar o servidor continuamente
-                self.sock.settimeout(0.1) # Timeout baixo para a thread não travar
-                self.receive_thread = threading.Thread(target=self.receive_messages, daemon=True)
-                self.receive_thread.start()
-                return True
+
+            data, _ = self.sock.recvfrom(1024)
+            resp = json.loads(data.decode())
+
+            if resp.get('type') != 'connection_accepted':
+                print("Servidor rejeitou conexão:", resp)
+                return False
+
+            self.my_side = resp['side']
+            self.player_number = resp.get('player_number')
+            self.connected = True
+            self.running = True
+            self.last_received = time.time()
+
+            # timeout baixo para loop de receive
+            self.sock.settimeout(0.15)
+
+            self.receive_thread = threading.Thread(target=self._receive_loop, daemon=True)
+            self.receive_thread.start()
+
+            print(f"Conectado! Você é o jogador {self.player_number} → lado {self.my_side}")
+            return True
+
         except Exception as e:
-            print(f"Falha ao conectar: {e}")
+            print(f"Erro ao conectar: {e}")
             return False
-    
+
     def disconnect(self):
-        """Desconecta do servidor"""
-        if self.connected:
-            try:
-                msg = {"type": "disconnect"}
-                self.sock.sendto(json.dumps(msg).encode(), self.server_address)
-            except:
-                pass
-            self.running = False
-            self.connected = False
-            self.sock.close()
-    
-    def send_paddle_position(self, y_position):
-        """Envia posição da raquete para o servidor"""
-        if not self.connected: return
-        
-        try:
-            msg = {
-                "type": "paddle_update",
-                "y": y_position
-            }
-            self.sock.sendto(json.dumps(msg).encode(), self.server_address)
-        except Exception as e:
-            print(f"Erro ao enviar posição: {e}")
-    
-    def send_ping(self):
-        """Envia ping para manter conexão ativa"""
         if not self.connected:
             return
-        
         try:
-            # Cria a mensagem simples de ping seguindo o teu protocolo JSON
-            msg = {
-                "type": "ping",
-                "timestamp": time.time() # Opcional: útil para medir latência (lag)
-            }
-            # Envia para o endereço do servidor configurado no __init__
+            msg = {"type": "disconnect"}
             self.sock.sendto(json.dumps(msg).encode(), self.server_address)
-        except Exception as e:
-            print(f"Erro ao enviar ping: {e}")
-    
-    def receive_messages(self):
-        """Thread que recebe mensagens do servidor continuamente"""
+        except:
+            pass
+        finally:
+            self.running = False
+            self.connected = False
+            if self.sock:
+                self.sock.close()
+            print("Desconectado do servidor.")
+
+    def _receive_loop(self):
         while self.running:
             try:
-                data, addr = self.sock.recvfrom(4096)
-                message = json.loads(data.decode())
-                
-                if message['type'] == 'game_state':
-                    self.game_state = message
-                    self.waiting_for_player = False
-                elif message['type'] == 'player_disconnected':
-                    self.waiting_for_player = True
+                data, _ = self.sock.recvfrom(4096)
+                msg = json.loads(data.decode())
+                self.last_received = time.time()
+
+                if msg['type'] == 'game_state':
+                    self.game_state = msg
+                elif msg['type'] == 'player_disconnected':
+                    print("O outro jogador desconectou.")
+                elif msg['type'] == 'connection_lost':
+                    print("Servidor considera você desconectado.")
+                    self.running = False
+
             except socket.timeout:
+                continue
+            except json.JSONDecodeError:
                 continue
             except Exception as e:
                 if self.running:
-                    print(f"Erro no recebimento: {e}")
+                    print(f"Erro na thread de receive: {e}")
                 break
-    
-    def get_my_paddle_y(self):
-        return self.game_state['paddles'].get(self.my_side, 50)
 
-    def get_opponent_paddle_y(self):
-        opp_side = 'right' if self.my_side == 'left' else 'left'
-        return self.game_state['paddles'].get(opp_side, 50)
-    
-    def get_ball_state(self):
-        """Retorna estado completo da bola"""
-        # TODO: Retornar dicionário com x, y, dx, dy, frozen
-        return self.game_state['ball']
-    
-    def get_scores(self):
-        """Retorna placar (score_left, score_right)"""
-        # TODO: Retornar tupla com placar
-        scores = self.game_state['scores']
-        return (scores['left'], scores['right'])
-    
-    def get_winner(self):
-        """Retorna vencedor ou None"""
-        # TODO: Retornar 'left', 'right' ou None
-        return self.game_state['winner']
-    
-    def is_waiting_for_player(self):
-        """Verifica se está aguardando outro jogador"""
-        return self.waiting_for_player
-    
-    def get_my_side(self):
-        """Retorna lado do jogador ('left' ou 'right')"""
-        return self.my_side
+    def is_alive(self):
+        """Verifica se a conexão ainda está ativa (timeout de ~5s)"""
+        if not self.connected:
+            return False
+        return (time.time() - self.last_received) < 5.0
 
-# TODO: Integração com game.py:
-# 
-# No início de game.py, importar:
-# from cliente import PongClient
-#
-# Criar instância do cliente:
-# client = PongClient('localhost', 5555)
-#
-# No menu, quando escolher jogar online:
-# if client.connect():
-#     # Conectado com sucesso
-#     if client.is_waiting_for_player():
-#         # Mostrar tela de aguardo
-#     else:
-#         # Iniciar jogo
-#
-# No loop de update():
-# # Enviar posição da própria raquete
-# if client.get_my_side() == 'left':
-#     client.send_paddle_position(p1_y)
-# else:
-#     client.send_paddle_position(p2_y)
-#
-# # Receber posição do oponente
-# if client.get_my_side() == 'left':
-#     p2_y = client.get_opponent_paddle_y()
-# else:
-#     p1_y = client.get_opponent_paddle_y()
-#
-# # Receber estado da bola
-# ball_state = client.get_ball_state()
-# ball_x = ball_state['x']
-# ball_y = ball_state['y']
-# ball_dx = ball_state['dx']
-# ball_dy = ball_state['dy']
-#
-# # Receber placar
-# score1, score2 = client.get_scores()
+    def send_paddle_position(self, y):
+        if not self.connected or not self.is_alive():
+            return
 
-# TODO: Tratamento de erros e reconexão:
-# - Detectar timeout de conexão (servidor não responde)
-# - Tentar reconectar automaticamente
-# - Mostrar mensagem de erro ao usuário
-# - Opção de voltar ao menu se conexão falhar
+        now = time.time()
+        if now - self.last_send_time < 0.033:  # ~30 envios/seg
+            return
 
-# TODO: Otimizações:
-# - Interpolação de posições para suavizar movimento
-# - Predição de movimento para compensar latência
-# - Compressão de mensagens se necessário
-# - Rate limiting de envio de posições
+        self.last_send_time = now
+        try:
+            msg = {"type": "paddle_update", "y": int(y)}
+            self.sock.sendto(json.dumps(msg).encode(), self.server_address)
+        except:
+            pass
 
-if __name__ == "__main__":
-    # TODO: Teste do cliente
-    # client = PongClient('localhost', 5555)
-    # if client.connect():
-    #     print("Conectado!")
-    #     # Simular envio de posições
-    # else:
-    #     print("Falha na conexão")
-    print("Cliente Pong UDP")
-    print("TODO: Implementar cliente completo")
+    def send_heartbeat(self):
+        if not self.connected or not self.is_alive():
+            return
+        try:
+            msg = {"type": "ping", "t": time.time()}
+            self.sock.sendto(json.dumps(msg).encode(), self.server_address)
+        except:
+            pass
+
+    def send_restart_request(self):
+        if not self.connected:
+            return
+        try:
+            msg = {"type": "restart"}
+            self.sock.sendto(json.dumps(msg).encode(), self.server_address)
+        except:
+            pass
+
+    # Getters convenientes
+    def get_ball(self):      return self.game_state.get('ball', {})
+    def get_paddles(self):   return self.game_state.get('paddles', {})
+    def get_scores(self):    return self.game_state.get('scores', {})
+    def get_winner(self):    return self.game_state.get('winner')
+    def get_my_paddle_y(self): return self.get_paddles().get(self.my_side, 50)
+    def is_waiting(self):    return self.game_state.get('ball', {}).get('frozen', True) and all(v == 0 for v in self.get_scores().values())

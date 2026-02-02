@@ -1,91 +1,81 @@
-import pyxel
-from cliente import PongClient  # Importa o arquivo que você já tem
+import pyxel, sys, time
+from cliente import PongClient
 
 class Game:
     def __init__(self):
-        # 1. Inicia o Pyxel
+        ip = input("IP do servidor: ").strip() or "localhost"
         pyxel.init(160, 120, title="Pong Online")
-        
-        # 2. Inicia o Cliente (Troque 'localhost' pelo IP do servidor na rede)
-        self.client = PongClient('localhost', 5555)
-        
-        # 3. Variável local para controlar a raquete antes de enviar ao servidor
-        self.y_local = 50
-        
-        # Tenta conectar imediatamente
-        if not self.client.connect("Jogador"):
-            print("Não foi possível conectar ao servidor.")
-            # Aqui você poderia voltar para um menu, por enquanto vamos fechar
-            # pyxel.quit() 
-
-        # 4. Carrega sons/imagens se necessário
-        #pyxel.load("game.pyxres")
-
+        self.client = PongClient(ip, 5555)
+        self.local_paddle_y = 50
+        if not self.client.connect(): sys.exit()
         pyxel.run(self.update, self.draw)
 
+    def draw_text_centered(self, y, text, color):
+        x = (pyxel.width - len(text) * 4) // 2
+        pyxel.text(x, y, text, color)
+
     def update(self):
-        if pyxel.btnp(pyxel.KEY_ESCAPE):
-            self.client.disconnect()
-            pyxel.quit()
-
-        if not self.client.connected:
-            return
-
-        # MOVIMENTO LOCAL
-        # O jogador só controla a raquete dele. O servidor decide qual lado ele é.
-        if pyxel.btn(pyxel.KEY_W) or pyxel.btn(pyxel.KEY_UP):
-            self.y_local -= 2
-        if pyxel.btn(pyxel.KEY_S) or pyxel.btn(pyxel.KEY_DOWN):
-            self.y_local += 2
-        
-        # Limites da tela
-        self.y_local = max(0, min(self.y_local, 104))
-        
-        # ENVIA PARA O SERVIDOR
-        self.client.send_paddle_position(self.y_local)
+        if not self.client.is_alive(): return
+        dy = (pyxel.btn(pyxel.KEY_S) - pyxel.btn(pyxel.KEY_W)) * 2.5
+        self.local_paddle_y = max(0, min(104, self.local_paddle_y + dy))
+        self.client.send_paddle_position(self.local_paddle_y)
+        if self.client.get_winner() and pyxel.btnp(pyxel.KEY_SPACE):
+            self.client.send_restart_request()
 
     def draw(self):
         pyxel.cls(0)
-        
         state = self.client.game_state
-        ball = state['ball']
-        paddles = state['paddles']
-        scores = state['scores']
+        ball = state.get('ball', {})
+        winner = state.get('winner')
+        votes = state.get('restart_votes', [])
+        my_side = self.client.my_side
+        disc_info = state.get('disconnected_info')
 
-        # TELA DE ESPERA
-        # Se a bola estiver congelada e o jogo não começou, avisa o usuário
-        if ball.get('frozen') and scores['left'] == 0 and scores['right'] == 0:
-            pyxel.text(45, 50, "AGUARDANDO OPONENTE...", pyxel.frame_count % 16)
-            pyxel.text(55, 70, f"VOCE E O LADO: {self.client.my_side}", 7)
-
-        # TELA DE VITORIA
-        winner = state['winner']
-        if winner is not None:
-            msg = f"PLAYER DA {winner} VENCEU!"
-            x_pos = 80 - (len(msg) * 2)
-            pyxel.text(x_pos, 50, msg, pyxel.frame_count % 16) 
-            msg2 = "SPACE: Restart"
-            x_pos2 = 80 - (len(msg2) * 2)
-            pyxel.text(x_pos2, 70, msg2, 7)
-            msg3 = "ESC: Quit"
-            x_pos3 = 80 - (len(msg3) * 2)
-            pyxel.text(x_pos3, 80, msg3, 7)
-            return
-        
-        # Meio de campo
+        # 1. Campo e Placar
         pyxel.line(80, 0, 80, 120, 13)
+        scores = state.get('scores', {})
+        pyxel.text(60, 8, str(scores.get('esquerdo', 0)), 12)
+        pyxel.text(95, 8, str(scores.get('direito', 0)), 8)
 
-        # Placar
-        pyxel.text(60, 10, str(scores['left']), 12)
-        pyxel.text(95, 10, str(scores['right']), 8)
+        # 2. Raquetes
+        paddles = state.get('paddles', {})
+        pyxel.rect(3, paddles.get('esquerdo', 50), 4, 16, 12)
+        pyxel.rect(153, paddles.get('direito', 50), 4, 16, 8)
 
-        # Raquetes
-        pyxel.rect(3, paddles.get('left', 50), 4, 16, 12)    # Azul
-        pyxel.rect(153, paddles.get('right', 50), 4, 16, 8) # Vermelho
+        # 3. Bola (so aparece se nao estiver em "Contagem de Inicio")
+        if not ball.get('frozen') or (ball.get('frozen') and not ball.get('is_starting')):
+            pyxel.circ(ball.get('x', 80), ball.get('y', 60), 2, 7)
 
-        # Bola
-        pyxel.circ(ball['x'], ball['y'], 2, 7)
+        # 4. Interface de Mensagens
+        now = time.time()
+        
+        # Caso de Desconexao (Prioridade maxima por 5 segundos)
+        if disc_info and (now - disc_info['time'] < 5.0):
+            pyxel.rect(10, 50, 140, 25, 0)
+            side = disc_info['side'].upper()
+            self.draw_text_centered(55, f"JOGADOR {side} DESCONECTADO", 8)
+        
+        # Caso de Vitoria
+        elif winner:
+            self.draw_text_centered(45, f"VITORIA: {winner.upper()}", pyxel.frame_count % 16)
 
-# Para rodar o jogo
+            if my_side in votes:
+                self.draw_text_centered(80, "AGUARDANDO OPONENTE...", 7)
+            else:
+                self.draw_text_centered(65, "SPACE PARA REINICIAR", 7)
+
+        
+        # Caso de Aguardando Oponente
+        elif not state.get('game_started'):
+            self.draw_text_centered(55, "AGUARDANDO OPONENTE...", pyxel.frame_count % 16)
+            self.draw_text_centered(110, f"VOCE E LADO: {self.client.my_side.upper()}", 13)
+
+        # Contagem Regressiva (Apenas no inicio ou reinicio)
+        elif ball.get('frozen') and ball.get('is_starting'):
+            seconds = (ball['freeze_timer'] // 60) + 1
+            pyxel.circb(80, 60, 12, 7)
+            pyxel.text(79, 58, str(seconds), 7)
+            self.draw_text_centered(78, "PREPARE-SE", 6)
+
 if __name__ == "__main__":
     Game()
