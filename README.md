@@ -1,83 +1,82 @@
 # pong-multiplayer 🎮
 
-Um jogo de Pong clássico com modo multiplayer online via UDP, desenvolvido em Python com Pyxel.
+Um jogo de Pong clássico com modo multiplayer online via **UDP**, desenvolvido em Python com a biblioteca **Pyxel**.
 
 ## Sobre o Projeto
 
-Este é um remake moderno do clássico Pong:
+Este projeto foi desenvolvido como parte da disciplina de Redes de Computadores. O objetivo é aplicar conceitos de comunicação via Sockets, lidando com a natureza não confiável do protocolo UDP para garantir uma experiência de jogo em tempo real.
 
-- 🌐 Suporte para multiplayer online via protocolo UDP
-- 🎨 Visual retrô com Pyxel
-- 🎵 Efeitos sonoros e música de fundo
+* 🌐 **Multiplayer Real-time:** Comunicação cliente-servidor via UDP.
+* ⚡ **Baixa Latência:** Otimizado para reduzir o *jitter* e o atraso nas raquetes.
+* 🎨 **Visual Retrô:** Estética 8-bit utilizando Pyxel.
 
 ## Estrutura do Projeto
 
-```
-pong_online/
+```text
+pong-multiplayer/
 ├── game.py           # Interface gráfica e lógica do jogo (Pyxel)
-├── servidor.py       # Servidor UDP
-├── cliente.py        # Cliente UDP
-└── game.pyxres       # Recursos gráficos e sonoros do Pyxel
+├── servidor.py       # Servidor centralizador das posições
+├── cliente.py        # Lógica de conexão e troca de dados
+└── game.pyxres       # Assets (sons e sprites)
+
 ```
 
 ## Requisitos
 
-- Python 3.8+
-- Pyxel 1.9.0+
+* Python 3.8+
+* Pyxel 1.9.0+
 
-## Instalação
+## Instalação e Execução
 
-1. Clone o repositório:
+1. **Clone o repositório:**
 ```bash
 git clone https://github.com/marianinhaUFMT/pong-multiplayer.git
 cd pong-multiplayer
+
 ```
 
-2. Instale o Pyxel:
+
+2. **Instale as dependências:**
 ```bash
 pip install pyxel
+
 ```
 
-3. Execute o jogo (modo local):
+
+3. **Inicie o Servidor:**
+Antes dos jogadores entrarem, o host deve rodar o servidor:
+```bash
+python servidor.py
+
+```
+
+
+4. **Inicie os Clientes:**
+Em terminais diferentes (ou computadores na mesma rede):
 ```bash
 python game.py
+
 ```
+
+
+
+## Configuração de Rede
+
+Para jogar em computadores diferentes na rede:
+
+1. Verifique seu IP privado com o comando `ip a` (ex: `10.1.40.139`).
+2. Os jogadores devem informar esse IP pelo terminal ao rodar `game.py`.
+3. Certifique-se de que a porta UDP escolhida (ex: `5000`) não está bloqueada pelo firewall.
 
 ## Como Jogar
 
-- Primeiro jogador a alcançar **10 pontos** vence
+**Controles:**
 
-**Jogador 1 (Esquerda):**
-- `W` - Mover para cima
-- `S` - Mover para baixo
-
-**Jogador 2 (Direita):**
-- `↑` - Mover para cima
-- `↓` - Mover para baixo
-
-**Controles Gerais:**
-- `SPACE` - Reiniciar jogo (após vitória)
-- `ESC` - Sair do jogo
-
-### Arquitetura
-
-O sistema multiplayer utilizará o protocolo UDP para comunicação em tempo real:
-
-```
-┌─────────────┐         UDP          ┌─────────────┐
-│  Cliente 1  │ ◄─────────────────► │  Servidor   │
-│  (game.py)  │                      │(servidor.py)│
-└─────────────┘                      └─────────────┘
-                                            ▲
-                                            │ UDP
-                                            ▼
-                                     ┌─────────────┐
-                                     │  Cliente 2  │
-                                     │  (game.py)  │
-                                     └─────────────┘
-```
+* **W / S ou UP / DOWN:** Move as raquetes.
+* **SPACE:** Reinicia a aplicação.
+* **ESC:** Finaliza a aplicação.
 
 ## Autores
 
-- **Mariana Sanchez Pedroni**
-- **Anna Bheatryz Martins dos Santos**
+* **Mariana Sanchez Pedroni**
+* **Anna Bheatryz Martins dos Santos**
