@@ -156,7 +156,7 @@ class PongServer:
                 self.check_timeouts()
                 self.update_physics()
                 self.broadcast()
-                time.sleep(1/60)
+                time.sleep(1/30)    # 30 FPS
         except KeyboardInterrupt:
             self.sock.close()
             print("\nServidor desligado.")
