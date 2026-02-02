@@ -29,7 +29,7 @@ pong_online/
 
 1. Clone o repositório:
 ```bash
-git clone https://github.com/seu-usuario/pong-multiplayer.git
+git clone https://github.com/marianinhaUFMT/pong-multiplayer.git
 cd pong-multiplayer
 ```
 
