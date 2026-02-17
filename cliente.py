@@ -1,8 +1,4 @@
-import socket
-import json
-import threading
-import time
-import sys
+import socket, json, threading, time, sys
 
 class PongClient:
     def __init__(self, server_host='localhost', server_port=5555):
