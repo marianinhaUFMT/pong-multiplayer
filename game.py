@@ -40,7 +40,7 @@ class Game:
         if self.client.game_state.get('game_started'):
             self.start_music()
 
-        dy = (pyxel.btn(pyxel.KEY_S) - pyxel.btn(pyxel.KEY_W)) * 2.5
+        dy = (pyxel.btn(pyxel.KEY_DOWN) - pyxel.btn(pyxel.KEY_UP)) * 2.5
         self.local_paddle_y = max(0, min(104, self.local_paddle_y + dy))
         self.client.send_paddle_position(self.local_paddle_y)
         
