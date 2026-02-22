@@ -66,7 +66,7 @@ Para jogar em computadores diferentes na rede:
 
 1. Verifique seu IP privado com o comando `ip a` (ex: `10.1.40.139`).
 2. Os jogadores devem informar esse IP pelo terminal ao rodar `game.py`.
-3. Certifique-se de que a porta UDP escolhida (ex: `5000`) não está bloqueada pelo firewall.
+3. Certifique-se de que a porta UDP escolhida (ex: `5555`) não está bloqueada pelo firewall.
 
 ## Como Jogar
 
