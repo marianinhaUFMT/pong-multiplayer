@@ -4,16 +4,28 @@ HOST = '0.0.0.0'
 PORT = 5555
 BUFFER_SIZE = 1024
 
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+    finally:
+        s.close()
+    return ip
+
 class PongServer:
     def __init__(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try: 
+
+        try:
             self.sock.bind((HOST, PORT))
-            print(f'Servidor Pong iniciado em {HOST}:{PORT}')
+            local_ip = get_local_ip()
+            print(f'Servidor Pong iniciado em {local_ip}:{PORT}')
         except OSError as e:
             print(f"Erro ao iniciar servidor: {e}")
             exit(1)
+
         self.sock.setblocking(False)
         
         self.players = {} 
@@ -48,7 +60,7 @@ class PongServer:
                         
                         self.players[addr] = {'side': side, 'y': 50, 'last_seen': time.time()}
                         
-                        # ENVIA O NÚMERO DO JOGADOR AQUI
+                        # ENVIA O NUMERO DO JOGADOR AQUI
                         resp = {
                             "type": "connection_accepted", 
                             "side": side, 
@@ -125,12 +137,16 @@ class PongServer:
 
         if self.ball['x'] < 0:
             self.scores['direito'] += 1
-            if self.scores['direito'] >= 10: self.winner = "direito"
-            else: self.reset_ball(1, is_starting=False)
+            if self.scores['direito'] >= 10: 
+                self.winner = "direito"
+            else: 
+                self.reset_ball(1, is_starting=False)
         elif self.ball['x'] > 160:
             self.scores['esquerdo'] += 1
-            if self.scores['esquerdo'] >= 10: self.winner = "esquerdo"
-            else: self.reset_ball(1, is_starting=False)
+            if self.scores['esquerdo'] >= 10: 
+                self.winner = "esquerdo"
+            else: 
+                self.reset_ball(1, is_starting=False)
 
     def broadcast(self):
         if not self.players: return
