@@ -19,6 +19,7 @@ class PongClient:
         self.last_send_time = 0
         self.HEARTBEAT_INTERVAL = 1.5   # segundos
 
+    """funcao para conectar ao servidor"""
     def connect(self, player_name="Jogador"):
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -53,6 +54,7 @@ class PongClient:
             print(f"Erro ao conectar: {e}")
             return False
 
+    """funcao para desconectar do servidor"""
     def disconnect(self):
         if not self.connected:
             return
@@ -68,6 +70,7 @@ class PongClient:
                 self.sock.close()
             print("Desconectado do servidor.")
 
+    """funcao para receber mensagens do servidor em loop"""
     def _receive_loop(self):
         while self.running:
             try:
@@ -92,12 +95,14 @@ class PongClient:
                     print(f"Erro na thread de receive: {e}")
                 break
 
+    """funcao para verificar se a conexao do cliente ainda esta ativa"""
     def is_alive(self):
         """Verifica se a conexão ainda está ativa (timeout de ~5s)"""
         if not self.connected:
             return False
         return (time.time() - self.last_received) < 5.0
 
+    """funcao para enviar a posicao da raquete para o servidor"""
     def send_paddle_position(self, y):
         if not self.connected or not self.is_alive():
             return
@@ -113,6 +118,7 @@ class PongClient:
         except:
             pass
 
+    """funcao para enviar o ping para o servidor"""
     def send_heartbeat(self):
         if not self.connected or not self.is_alive():
             return
@@ -121,7 +127,7 @@ class PongClient:
             self.sock.sendto(json.dumps(msg).encode(), self.server_address)
         except:
             pass
-
+    """funcao para enviar pedido de restart para o servidor"""
     def send_restart_request(self):
         if not self.connected:
             return

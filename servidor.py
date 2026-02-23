@@ -4,6 +4,7 @@ HOST = '0.0.0.0'
 PORT = 5555
 BUFFER_SIZE = 1024
 
+"""funcao para obter o ip local da maquina"""
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -15,9 +16,8 @@ def get_local_ip():
 
 class PongServer:
     def __init__(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # IPv4 e UDP
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
         try:
             self.sock.bind((HOST, PORT))
             local_ip = get_local_ip()
@@ -27,7 +27,7 @@ class PongServer:
             exit(1)
 
         self.sock.setblocking(False)
-        
+        # variaveis de estado do jogo
         self.players = {} 
         self.ball = {'x': 80, 'y': 60, 'dx': 0, 'dy': 0, 'frozen': True, 'freeze_timer': 0, 'is_starting': False}
         self.scores = {'esquerdo': 0, 'direito': 0}
@@ -36,6 +36,7 @@ class PongServer:
         self.disconnected_info = None 
         self.restart_votes = set()
 
+    """funcao de resetar a bola"""
     def reset_ball(self, countdown_seconds=3, is_starting=False):
         self.ball.update({
             'x': 80, 'y': 60,
@@ -46,6 +47,7 @@ class PongServer:
             'dy': random.uniform(-1.2, 1.2)
         })
 
+    """funcao para lidar com as mensagens recebidas dos clientes"""
     def handle_messages(self):
         try:
             while True:
@@ -96,6 +98,7 @@ class PongServer:
                     del self.players[addr]
         except (BlockingIOError, json.JSONDecodeError): pass
 
+    """funcao para lidar com desconexoes dos jogadores"""
     def _handle_disconnect(self, side):
         print(f"Jogador {side} desconectado.")
         self.disconnected_info = {'side': side, 'time': time.time()}
@@ -105,6 +108,7 @@ class PongServer:
         self.scores = {'esquerdo': 0, 'direito': 0}
         self.restart_votes.clear() # se alguem sai
 
+    """funcao para verificar jogadores inativos e desconecta-los"""
     def check_timeouts(self):
         now = time.time()
         to_delete = [addr for addr, p in self.players.items() if now - p['last_seen'] > 5.0]
@@ -112,6 +116,7 @@ class PongServer:
             self._handle_disconnect(self.players[addr]['side'])
             del self.players[addr]
 
+    """funcao para atualizar as fisicas do jogo"""
     def update_physics(self):
         if not self.game_started or self.winner: return
 
@@ -148,6 +153,7 @@ class PongServer:
             else: 
                 self.reset_ball(1, is_starting=False)
 
+    """funcao para enviar estado atual do jogo para os clientes"""
     def broadcast(self):
         if not self.players: return
 
@@ -164,6 +170,7 @@ class PongServer:
             try: self.sock.sendto(package, addr)
             except: pass
 
+    """funcao principal do servidor, roda o loop de jogo"""
     def run(self):
         print("Aguardando conexões...")
         try:
