@@ -2,6 +2,8 @@
 
 Um jogo de Pong clássico com modo multiplayer online via **UDP**, desenvolvido em Python com a biblioteca **Pyxel**.
 
+![demonstracao](assets/demonstration.gif)
+
 ## Sobre o Projeto
 
 Este projeto foi desenvolvido como parte da disciplina de Redes de Computadores. O objetivo é aplicar conceitos de comunicação via Sockets, lidando com a natureza não confiável do protocolo UDP para garantir uma experiência de jogo em tempo real.
